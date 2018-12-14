@@ -81,33 +81,55 @@ key_get_pressed(PyObject *self)
 {
     int num_keys;
     Uint8 *key_state;
-    PyObject *key_tuple;
+    PyObject *states_list;
     int i;
 
     VIDEO_INIT_CHECK();
 
 #if IS_SDLv1
     key_state = SDL_GetKeyState(&num_keys);
-#else  /* IS_SDLv2 */
-    key_state = SDL_GetKeyboardState(&num_keys);
-#endif /* IS_SDLv2 */
 
     if (!key_state || !num_keys)
         Py_RETURN_NONE;
 
-    if (!(key_tuple = PyTuple_New(num_keys)))
+    if (!(states_list = PyTuple_New(num_keys)))
         return NULL;
 
     for (i = 0; i < num_keys; i++) {
         PyObject *key_elem;
         key_elem = PyInt_FromLong(key_state[i]);
         if (!key_elem) {
-            Py_DECREF(key_tuple);
+            Py_DECREF(states_list);
             return NULL;
         }
-        PyTuple_SET_ITEM(key_tuple, i, key_elem);
+        PyTuple_SET_ITEM(states_list, i, key_elem);
     }
-    return key_tuple;
+    return states_list;
+#else /* IS_SDLv2 */
+    key_state = SDL_GetKeyboardState(&num_keys);
+
+    if (!key_state || !num_keys)
+        Py_RETURN_NONE;
+
+    if (!(states_list = PyDict_New()))
+        return NULL;
+
+    for (i = 0; i < num_keys; i++) {
+        PyObject *key_elem, *ind;
+        key_elem = PyInt_FromLong(key_state[i]);
+        ind = NULL;
+        if (!key_elem ||
+            !(ind = PyInt_FromLong(SDL_GetKeyFromScancode(i))))
+        {
+            Py_XDECREF(ind);
+            Py_XDECREF(key_elem);
+            Py_DECREF(states_list);
+            return NULL;
+        }
+        PyDict_SetItem(states_list, ind, key_elem);
+    }
+    return states_list;
+#endif /* IS_SDLv2 */
 }
 
 #if IS_SDLv2
